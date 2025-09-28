@@ -1,7 +1,8 @@
+
 export interface PdfConversionResult {
-    imageUrl: string;
-    file: File | null;
     error?: string;
+    file: File | null;
+    imageUrl: string;
 }
 
 let pdfjsLib: any = null;
@@ -16,7 +17,7 @@ async function loadPdfJs(): Promise<any> {
     // @ts-expect-error - pdfjs-dist/build/pdf.mjs is not a module
     loadPromise = import("pdfjs-dist/build/pdf.mjs").then((lib) => {
         // Set the worker source to use local file
-        lib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        lib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.worker.min.mjs`;
         pdfjsLib = lib;
         isLoading = false;
         return lib;
