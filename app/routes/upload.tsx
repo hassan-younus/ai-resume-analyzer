@@ -18,50 +18,96 @@ const Upload = () => {
         setFile(file)
     }
 
-    const handleAnalyze = async ({ companyName, jobTitle, jobDescription, file }: { companyName: string, jobTitle: string, jobDescription: string, file: File  }) => {
-        setIsProcessing(true);
+    const handleAnalyze = async ({
+                                     companyName,
+                                     jobTitle,
+                                     jobDescription,
+                                     file,
+                                 }: {
+        companyName: string;
+        jobTitle: string;
+        jobDescription: string;
+        file: File;
+    }) => {
+        try {
+            setIsProcessing(true);
 
-        setStatusText('Uploading the file...');
-        const uploadedFile = await fs.upload([file]);
-        if(!uploadedFile) return setStatusText('Error: Failed to upload file');
+            setStatusText("Uploading the file...");
+            const uploadedFile = await fs.upload([file]);
+            if (!uploadedFile) {
+                setStatusText("Error: Failed to upload file");
+                return;
+            }
 
-        setStatusText('Converting to image...');
-        const imageFile = await convertPdfToImage(file);
-        if(!imageFile.file) return setStatusText('Error: Failed to convert PDF to image');
+            setStatusText("Converting to image...");
+            const imageFile = await convertPdfToImage(file);
+            if (!imageFile.file) {
+                setStatusText("Error: Failed to convert PDF to image");
+                return;
+            }
 
-        setStatusText('Uploading the image...');
-        const uploadedImage = await fs.upload([imageFile.file]);
-        if(!uploadedImage) return setStatusText('Error: Failed to upload image');
+            setStatusText("Uploading the image...");
+            const uploadedImage = await fs.upload([imageFile.file]);
+            if (!uploadedImage) {
+                setStatusText("Error: Failed to upload image");
+                return;
+            }
 
-        setStatusText('Preparing data...');
-        const uuid = generateUUID();
-        const data = {
-            id: uuid,
-            resumePath: uploadedFile.path,
-            imagePath: uploadedImage.path,
-            companyName, jobTitle, jobDescription,
-            feedback: '',
+            setStatusText("Preparing data...");
+            const uuid = generateUUID();
+            const data = {
+                id: uuid,
+                resumePath: uploadedFile.path,
+                imagePath: uploadedImage.path,
+                companyName,
+                jobTitle,
+                jobDescription,
+                feedback: "",
+            };
+            await kv.set(`resume:${uuid}`, JSON.stringify(data));
+
+            setStatusText("Analyzing...");
+            const feedback = await ai.feedback(
+                uploadedFile.path,
+                prepareInstructions({ jobTitle, jobDescription })
+            );
+
+            if (!feedback) {
+                setStatusText("Error: Failed to analyze resume");
+                return;
+            }
+
+            let feedbackText: string;
+            if (typeof feedback.message?.content === "string") {
+                feedbackText = feedback.message.content;
+            } else if (Array.isArray(feedback.message?.content)) {
+                feedbackText = feedback.message.content[0]?.text ?? "";
+            } else {
+                setStatusText("Error: Unexpected feedback format");
+                return;
+            }
+
+            try {
+                data.feedback = JSON.parse(feedbackText);
+            } catch (parseErr) {
+                console.error("❌ Failed to parse feedback JSON:", feedbackText, parseErr);
+                setStatusText("Error: Invalid feedback format from AI");
+                return;
+            }
+
+            await kv.set(`resume:${uuid}`, JSON.stringify(data));
+
+            setStatusText("Analysis complete, redirecting...");
+            console.log(data);
+            navigate(`/resume/${uuid}`);
+        } catch (err: any) {
+            console.error("❌ handleAnalyze failed:", err);
+            setStatusText(`Unexpected error: ${err.message || "See console"}`);
+        } finally {
+            setIsProcessing(false);
         }
-        await kv.set(`resume:${uuid}`, JSON.stringify(data));
+    };
 
-        setStatusText('Analyzing...');
-
-        const feedback = await ai.feedback(
-            uploadedFile.path,
-            prepareInstructions({ jobTitle, jobDescription })
-        )
-        if (!feedback) return setStatusText('Error: Failed to analyze resume');
-
-        const feedbackText = typeof feedback.message.content === 'string'
-            ? feedback.message.content
-            : feedback.message.content[0].text;
-
-        data.feedback = JSON.parse(feedbackText);
-        await kv.set(`resume:${uuid}`, JSON.stringify(data));
-        setStatusText('Analysis complete, redirecting...');
-        console.log(data);
-        navigate(`/resume/${uuid}`);
-    }
 
     const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
