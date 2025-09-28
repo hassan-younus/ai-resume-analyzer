@@ -8,7 +8,7 @@ import {generateUUID} from "~/lib/utils";
 import {prepareInstructions} from "~/constants";
 
 const Upload = () => {
-    const {  fs, ai, kv } = usePuterStore();
+    const { auth, isLoading, fs, ai, kv } = usePuterStore();
     const navigate = useNavigate();
     const [isProcessing, setIsProcessing] = useState(false);
     const [statusText, setStatusText] = useState('');
@@ -27,11 +27,7 @@ const Upload = () => {
 
         setStatusText('Converting to image...');
         const imageFile = await convertPdfToImage(file);
-        if (!imageFile.file || imageFile.error) {
-            return setStatusText(
-                `Error: ${imageFile.error ?? "Failed to convert PDF to image"}`
-            );
-        }
+        if(!imageFile.file) return setStatusText('Error: Failed to convert PDF to image');
 
         setStatusText('Uploading the image...');
         const uploadedImage = await fs.upload([imageFile.file]);
